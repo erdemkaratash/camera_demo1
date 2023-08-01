@@ -4,6 +4,7 @@ import 'package:camera_demo/post_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:timer_count_down/timer_count_down.dart';
 import '../camera.dart';
 
@@ -32,18 +33,18 @@ class _TakePhotoViewState extends State<TakePhotoView>
         showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: Text('Error'),
-              content: Text(_cameraManager.errorNotifier.errorMessage ??
-                  'Could not retrieve error'),
-              actions: <Widget>[
-                TextButton(
-                  child: Text('OK'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            ));
+                  title: Text('Error'),
+                  content: Text(_cameraManager.errorNotifier.errorMessage ??
+                      'Could not retrieve error'),
+                  actions: <Widget>[
+                    TextButton(
+                      child: Text('OK'),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ],
+                ));
       }
     });
   }
@@ -51,15 +52,29 @@ class _TakePhotoViewState extends State<TakePhotoView>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _cameraManager.requestCameraPermission().then((granted) {
-      if (granted) {
+    _cameraManager.requestCameraPermission().then((permissionStatus) {
+      if (permissionStatus.isGranted || permissionStatus.isLimited) {
         _cameraManager.initializeCamera().then((_) {
           if (mounted) {
             setState(() {});
           }
         });
       } else {
-        _cameraManager.errorNotifier.setError("Camera permission not granted");
+        String errorMessage;
+        switch (permissionStatus) {
+          case PermissionStatus.denied:
+            errorMessage = "Camera permission was denied";
+            break;
+          case PermissionStatus.restricted:
+            errorMessage = "Camera permission is restricted";
+            break;
+          case PermissionStatus.permanentlyDenied:
+            errorMessage = "Camera permission is permanently denied";
+            break;
+          default:
+            errorMessage = "Unknown camera permission status";
+        }
+        _cameraManager.errorNotifier.setError(errorMessage);
       }
     });
   }
@@ -75,16 +90,29 @@ class _TakePhotoViewState extends State<TakePhotoView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      _cameraManager.requestCameraPermission().then((granted) {
-        if (granted) {
+      _cameraManager.requestCameraPermission().then((permissionStatus) {
+        if (permissionStatus.isGranted || permissionStatus.isLimited) {
           _cameraManager.initializeCamera().then((_) {
             if (mounted) {
               setState(() {});
             }
           });
         } else {
-          _cameraManager.errorNotifier
-              .setError("Camera permission not granted");
+          String errorMessage;
+          switch (permissionStatus) {
+            case PermissionStatus.denied:
+              errorMessage = "Camera permission was denied";
+              break;
+            case PermissionStatus.restricted:
+              errorMessage = "Camera permission is restricted";
+              break;
+            case PermissionStatus.permanentlyDenied:
+              errorMessage = "Camera permission is permanently denied";
+              break;
+            default:
+              errorMessage = "Unknown camera permission status";
+          }
+          _cameraManager.errorNotifier.setError(errorMessage);
         }
       });
     }
@@ -225,7 +253,7 @@ class _TakePhotoViewState extends State<TakePhotoView>
           width: 80,
           height: 50,
           decoration: BoxDecoration(
-            color: _isProcessing ? Color(0xFFFFFFFF): Color(0xFF161E44),
+            color: _isProcessing ? Color(0xFFFFFFFF) : Color(0xFF161E44),
             borderRadius: BorderRadius.circular(10.0),
           ),
           child: Icon(Icons.switch_camera, color: Colors.white),
@@ -246,18 +274,17 @@ class _TakePhotoViewState extends State<TakePhotoView>
           child: Center(
             child: _isTimerRunning // if the timer is running
                 ? Countdown(
-              seconds: 180,
-              build: (_, double time) => Text(
-                time.floor().toString(),
-                style: TextStyle(fontSize: 18),
-              ),
-              interval: Duration(milliseconds: 100),
-              onFinished: () {
-              },
-            )
+                    seconds: 180,
+                    build: (_, double time) => Text(
+                      time.floor().toString(),
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    interval: Duration(milliseconds: 100),
+                    onFinished: () {},
+                  )
                 : CircularProgressIndicator(
-              color: Color(0xFF161E44),
-            ),
+                    color: Color(0xFF161E44),
+                  ),
           ),
         ),
       ),
@@ -271,31 +298,30 @@ class _TakePhotoViewState extends State<TakePhotoView>
         onPressed: _isProcessing
             ? null
             : () async {
-          setState(() {
-            _isTimerRunning = false; // Stop the timer
-            _isProcessing = true; // Start the loading indicator
-          });
+                setState(() {
+                  _isTimerRunning = false; // Stop the timer
+                  _isProcessing = true; // Start the loading indicator
+                });
 
-          final imageFilee =
-          await takePhoto(context, _cameraManager.cameraController);
+                final imageFilee =
+                    await takePhoto(context, _cameraManager.cameraController);
 
+                // Check if the widget is still in the tree before calling setState
+                if (mounted) {
+                  setState(() {
+                    _isProcessing = false; // Stop the loading indicator
+                  });
+                }
 
-          // Check if the widget is still in the tree before calling setState
-          if (mounted) {
-            setState(() {
-              _isProcessing = false; // Stop the loading indicator
-            });
-          }
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PostView(
-                xFile: imageFilee,
-              ),
-            ),
-          );
-        },
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PostView(
+                      xFile: imageFilee,
+                    ),
+                  ),
+                );
+              },
         child: Container(
           width: 80,
           height: 50,

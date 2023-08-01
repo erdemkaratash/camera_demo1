@@ -102,22 +102,21 @@ class CameraManager with ChangeNotifier {
     }
   }
 
-  Future<bool> requestCameraPermission() async {
+  Future<PermissionStatus> requestCameraPermission() async {
     try {
       var status = await Permission.camera.status;
-      if (!status.isGranted) {
-        var result = await Permission.camera.request();
-        return result.isGranted;
+      if (!status.isGranted && !status.isLimited) {
+        return await Permission.camera.request();
       }
-      return true;
+      return status;
     } on PlatformException catch (e) {
       errorNotifier
           .setError('Failed to request camera permission: ${e.message}');
-      return false;
+      return PermissionStatus.denied;
     } catch (e) {
       errorNotifier.setError(
           'An unexpected error occurred while requesting camera permission: $e');
-      return false;
+      return PermissionStatus.denied;
     }
   }
 }
